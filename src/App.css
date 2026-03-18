@@ -29,15 +29,15 @@ canvas {
 
 .controls-overlay fieldset {
   flex: 1;
-  border: 1px solid #525252;
+  border: 1px solid rgba(80, 120, 60, 0.4);
   border-radius: 8px;
   padding: 12px 16px;
   margin: 0;
-  background: rgba(23, 23, 23, 0.9);
+  background: rgba(10, 22, 12, 0.92);
 }
 
 .controls-overlay legend {
-  color: #a3a3a3;
+  color: #6a9658;
   font-size: 9px;
   font-weight: 500;
   text-transform: uppercase;
@@ -57,13 +57,13 @@ canvas {
 }
 
 .controls-overlay .label {
-  color: #a3a3a3;
+  color: #7aaa68;
   min-width: 60px;
   font-size: 10px;
 }
 
 .controls-overlay .value {
-  color: #ffffff;
+  color: #c8e0b8;
   min-width: 50px;
   text-align: right;
   font-size: 10px;
@@ -71,9 +71,9 @@ canvas {
 
 /* Select */
 .controls-overlay select {
-  background: #262626;
-  color: #ffffff;
-  border: 1px solid #525252;
+  background: #0e2212;
+  color: #c8e0b8;
+  border: 1px solid rgba(80, 120, 60, 0.5);
   border-radius: 4px;
   padding: 2px 6px;
   font-family: monospace;
@@ -83,15 +83,15 @@ canvas {
 
 .controls-overlay select:focus {
   outline: none;
-  border-color: #a3a3a3;
-  box-shadow: 0 0 0 2px rgba(163, 163, 163, 0.2);
+  border-color: #7aaa68;
+  box-shadow: 0 0 0 2px rgba(122, 170, 104, 0.2);
 }
 
 /* Range slider */
 .controls-overlay input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  background: #404040;
+  background: rgba(80, 120, 60, 0.35);
   height: 3px;
   border-radius: 2px;
   cursor: pointer;
@@ -103,7 +103,7 @@ canvas {
   appearance: none;
   width: 10px;
   height: 10px;
-  background: #ffffff;
+  background: #c8e0b8;
   border-radius: 50%;
   cursor: pointer;
 }
@@ -111,7 +111,7 @@ canvas {
 .controls-overlay input[type="range"]::-moz-range-thumb {
   width: 10px;
   height: 10px;
-  background: #ffffff;
+  background: #c8e0b8;
   border: none;
   border-radius: 50%;
   cursor: pointer;
@@ -135,7 +135,7 @@ canvas {
   right: 0;
   height: 3px;
   margin-top: -1.5px;
-  background: #404040;
+  background: rgba(80, 120, 60, 0.35);
   border-radius: 2px;
 }
 
@@ -144,7 +144,7 @@ canvas {
   top: 50%;
   height: 3px;
   margin-top: -1.5px;
-  background: #a3a3a3;
+  background: rgba(122, 170, 104, 0.7);
   border-radius: 2px;
 }
 
@@ -199,20 +199,20 @@ canvas {
 
 /* Min thumb - muted */
 .dual-range input[type="range"]:first-child::-webkit-slider-thumb {
-  background: #a3a3a3;
+  background: #7aaa68;
 }
 
 .dual-range input[type="range"]:first-child::-moz-range-thumb {
-  background: #a3a3a3;
+  background: #7aaa68;
 }
 
 /* Max thumb - bright */
 .dual-range input[type="range"]:last-child::-webkit-slider-thumb {
-  background: #ffffff;
+  background: #c8e0b8;
 }
 
 .dual-range input[type="range"]:last-child::-moz-range-thumb {
-  background: #ffffff;
+  background: #c8e0b8;
 }
 
 /* Checkbox */
@@ -225,17 +225,17 @@ canvas {
   appearance: none;
   width: 12px;
   height: 12px;
-  border: 1px solid #525252;
+  border: 1px solid rgba(80, 120, 60, 0.5);
   border-radius: 3px;
-  background: #262626;
+  background: #0e2212;
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
 }
 
 .controls-overlay label.checkbox input:checked {
-  background: #262626;
-  border-color: #ffffff;
+  background: #0e2212;
+  border-color: #7aaa68;
 }
 
 .controls-overlay label.checkbox input:checked::after {
@@ -245,15 +245,15 @@ canvas {
   left: 2px;
   right: 2px;
   bottom: 2px;
-  background: #ffffff;
+  background: #7aaa68;
   border-radius: 1px;
 }
 
 .controls-overlay label.checkbox span {
-  color: #a3a3a3;
+  color: #7aaa68;
   font-size: 10px;
 }
 
 .controls-overlay label.checkbox:hover span {
-  color: #d4d4d4;
+  color: #c8e0b8;
 }
