@@ -152,14 +152,16 @@ function drawOneSeed(
   seed: DandelionSeed,
   opacity: number,
   lean: number = 0,
+  growthFrac: number = 1,  // 0 = just started growing, 1 = full length
 ): void {
-  if (opacity <= 0.01) return
-  // lean: subtle angular tilt as head displaces (seeds trail slightly behind head movement)
+  if (opacity <= 0.01 || growthFrac <= 0.01) return
   const angle = seed.angle + lean
-  const tipX = cx + Math.cos(angle) * seed.length
-  const tipY = cy + Math.sin(angle) * seed.length
+  // Filament grows outward from center — tip advances as growthFrac increases
+  const currentLength = seed.length * growthFrac
+  const tipX = cx + Math.cos(angle) * currentLength
+  const tipY = cy + Math.sin(angle) * currentLength
 
-  // Stalk
+  // Stalk — always fully opaque, just shorter while growing
   ctx.beginPath()
   ctx.moveTo(cx, cy)
   ctx.lineTo(tipX, tipY)
@@ -167,29 +169,31 @@ function drawOneSeed(
   ctx.lineWidth = 0.45
   ctx.stroke()
 
-  // Pappus hairs — uniform: 14 evenly-spaced hairs, identical length, matching flying seeds
-  const NUM_HAIRS = 35
-  const HAIR_LEN = 6.5
-  const CP_FRAC = 0.55
-  ctx.lineWidth = 1.5
-  ctx.strokeStyle = `rgba(245,240,228,${opacity * 0.52})`
-  for (let i = 0; i < NUM_HAIRS; i++) {
-    const a = (i / NUM_HAIRS) * Math.PI * 2
-    const ex = tipX + Math.cos(a) * HAIR_LEN
-    const ey = tipY + Math.sin(a) * HAIR_LEN
-    const cpx = tipX + Math.cos(a) * HAIR_LEN * CP_FRAC
-    const cpy = tipY + Math.sin(a) * HAIR_LEN * CP_FRAC
+  // Pappus hairs — appear only in the final 25% of growth, fading in naturally
+  const pappusOp = growthFrac < 0.75 ? 0 : (growthFrac - 0.75) / 0.25
+  if (pappusOp > 0.01) {
+    const NUM_HAIRS = 35
+    const HAIR_LEN = 6.5
+    const CP_FRAC = 0.55
+    ctx.lineWidth = 1.5
+    ctx.strokeStyle = `rgba(245,240,228,${opacity * 0.52 * pappusOp})`
+    for (let i = 0; i < NUM_HAIRS; i++) {
+      const a = (i / NUM_HAIRS) * Math.PI * 2
+      const ex = tipX + Math.cos(a) * HAIR_LEN
+      const ey = tipY + Math.sin(a) * HAIR_LEN
+      const cpx = tipX + Math.cos(a) * HAIR_LEN * CP_FRAC
+      const cpy = tipY + Math.sin(a) * HAIR_LEN * CP_FRAC
+      ctx.beginPath()
+      ctx.moveTo(tipX, tipY)
+      ctx.quadraticCurveTo(cpx, cpy, ex, ey)
+      ctx.stroke()
+    }
+    // Bright tip dot — appears with pappus
     ctx.beginPath()
-    ctx.moveTo(tipX, tipY)
-    ctx.quadraticCurveTo(cpx, cpy, ex, ey)
-    ctx.stroke()
+    ctx.arc(tipX, tipY, 1.1, 0, Math.PI * 2)
+    ctx.fillStyle = `rgba(255,250,240,${opacity * 0.92 * pappusOp})`
+    ctx.fill()
   }
-
-  // Bright tip dot
-  ctx.beginPath()
-  ctx.arc(tipX, tipY, 1.1, 0, Math.PI * 2)
-  ctx.fillStyle = `rgba(255,250,240,${opacity * 0.92})`
-  ctx.fill()
 }
 
 // Draw a flying seed: stalk trails behind the pappus tuft, identical visual to attached seeds
@@ -269,6 +273,8 @@ export function Visualizer({
   const ruffleIntensityRef = useRef(0) // smoothed voice intensity driving the ruffle
   const rufflePhaseRef = useRef(0) // advances to create ripple propagation across seeds
   const lastReattachFrameRef = useRef(0) // rate-limits seed regeneration to one per ~1.5 s
+  const micRevealRef = useRef(0)         // 0 = mic not yet granted, 1 = fully revealed
+  const dandelionRevealRef = useRef(0)   // 0 = hidden, 1 = fully faded in
   const depletionGlowRef = useRef(0) // 0 = normal, 1 = full ember glow
   const depletionBreathRef = useRef(0) // phase for slow breathing pulse
 
@@ -425,6 +431,35 @@ export function Visualizer({
         ctx.globalAlpha = 1
       }
 
+      // ── Mic permission reveal ───────────────────────────────────────────
+      micRevealRef.current = isActive
+        ? Math.min(micRevealRef.current + 0.010, 1)   // fade in over ~1.7 s
+        : Math.max(micRevealRef.current - 0.006, 0)   // fade back if revoked
+      const micReveal = micRevealRef.current
+
+      if (micReveal < 1) {
+        // "awaiting" text — fades out as mic activates
+        const textOp = 1 - micReveal
+        ctx.save()
+        ctx.globalAlpha = textOp
+        ctx.font = 'italic 14px Georgia, "Times New Roman", serif'
+        ctx.fillStyle = 'rgba(240, 228, 210, 1)'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('awaiting microphone input…', W / 2, H / 2)
+        ctx.restore()
+      }
+
+      if (micReveal < 1) {
+        dandelionRevealRef.current = 0   // reset so next reveal always fades in fresh
+        animRef.current = requestAnimationFrame(draw)
+        return
+      }
+
+      // Dandelion fades in after text is fully gone
+      dandelionRevealRef.current = Math.min(dandelionRevealRef.current + 0.014, 1)
+      const dandelionReveal = dandelionRevealRef.current
+
       // ── Stem — completely still, rooted, never moves ───────────────────
       ctx.beginPath()
       ctx.moveTo(195, 205)
@@ -440,7 +475,7 @@ export function Visualizer({
         if (s.isDetached && s.detachProgress < 1) {
           s.detachProgress = Math.min(s.detachProgress + 0.06, 1) // fast fade-out
         } else if (!s.isDetached && s.detachProgress > 0) {
-          s.detachProgress = Math.max(s.detachProgress - 0.016, 0) // slow fade-in (~62 frames ≈ 1 s)
+          s.detachProgress = Math.max(s.detachProgress - 0.025, 0) // growth animation (~40 frames ≈ 0.65 s)
         }
       }
 
@@ -449,7 +484,7 @@ export function Visualizer({
       const fullyDepleted = attachedCount === 0
       const dg = depletionGlowRef.current
       depletionGlowRef.current =
-        fullyDepleted && intensity > 0.025
+        fullyDepleted && intensity > 0.034
           ? dg + (1 - dg) * 0.015 // attack: ~2.5 s to saturate at loud speech
           : dg * 0.992 // decay: ~9 s half-life — lingers like a cooling ember
       const depletionGlow = depletionGlowRef.current
@@ -458,7 +493,7 @@ export function Visualizer({
 
       // Spawn flying seeds — lower threshold so a whisper releases 1–2 seeds,
       // normal speech gives a steady stream, loud voice bursts
-      const spawnFloat = intensity < 0.025 ? 0 : (intensity - 0.01) ** 1.65 * 4
+      const spawnFloat = intensity < 0.034 ? 0 : (intensity - 0.020) ** 1.65 * 4
       const spawnCount =
         Math.floor(spawnFloat) + (rng() < spawnFloat % 1 ? 1 : 0)
       for (let n = 0; n < spawnCount; n++) {
@@ -502,7 +537,7 @@ export function Visualizer({
 
       // Reattach seeds — one at a time, only during silence, ~0.25 s between each seed
       // This makes recovery feel gradual and meaningful rather than an instant reset
-      if (intensity < 0.025 && frame - lastReattachFrameRef.current >= 10) {
+      if (intensity < 0.034 && frame - lastReattachFrameRef.current >= 5) {
         const eligible = seeds.filter(
           (s) => s.isDetached && frame >= s.reattachAt,
         )
@@ -524,36 +559,22 @@ export function Visualizer({
       ctx.save()
       for (const s of seeds) {
         if (s.depthFactor >= -0.3) continue
-        drawOneSeed(
-          ctx,
-          headX,
-          headY,
-          s,
-          (1 - s.detachProgress) * 0.42,
-          seedOffset(s),
-        )
+        // Detaching: fade out at full length. Regenerating: full opacity, growing length.
+        const op     = s.isDetached ? (1 - s.detachProgress) * 0.42 : 0.42
+        const growth = s.isDetached ? 1 : (1 - s.detachProgress)
+        drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
       for (const s of seeds) {
         if (s.depthFactor < -0.3 || s.depthFactor >= 0.3) continue
-        drawOneSeed(
-          ctx,
-          headX,
-          headY,
-          s,
-          (1 - s.detachProgress) * 0.68,
-          seedOffset(s),
-        )
+        const op     = s.isDetached ? (1 - s.detachProgress) * 0.68 : 0.68
+        const growth = s.isDetached ? 1 : (1 - s.detachProgress)
+        drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
       for (const s of seeds) {
         if (s.depthFactor < 0.3) continue
-        drawOneSeed(
-          ctx,
-          headX,
-          headY,
-          s,
-          (1 - s.detachProgress) * 0.94,
-          seedOffset(s),
-        )
+        const op     = s.isDetached ? (1 - s.detachProgress) * 0.94 : 0.94
+        const growth = s.isDetached ? 1 : (1 - s.detachProgress)
+        drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
       ctx.restore()
 
@@ -643,7 +664,7 @@ export function Visualizer({
         const seedDriftY = Math.sin(fs.spiralPhase * 2.3) * 0.05 // ±0.050 — soft vertical spread
 
         // Very gentle upward bias — seeds float, not fly
-        const windUp = intensity > 0.025 ? -(0.01 + intensity * 0.012) : 0.008
+        const windUp = intensity > 0.034 ? -(0.01 + intensity * 0.012) : 0.008
 
         fs.vx +=
           wx * 0.045 +
@@ -655,8 +676,8 @@ export function Visualizer({
           seedDriftY +
           Math.cos(fs.age * 0.13 + fs.spiralPhase) * 0.012
 
-        fs.vx *= 0.98
-        fs.vy *= 0.98
+        fs.vx *= 0.974
+        fs.vy *= 0.974
 
         fs.x += fs.vx
         fs.y += fs.vy
@@ -693,6 +714,19 @@ export function Visualizer({
       }
 
       flyingSeedsRef.current = living
+
+      // Soft fade-in: overlay background gradient at decreasing opacity
+      if (dandelionReveal < 1) {
+        const fadeGrad = ctx.createLinearGradient(0, 0, 0, H)
+        fadeGrad.addColorStop(0, '#0a1a0d')
+        fadeGrad.addColorStop(0.45, '#162b18')
+        fadeGrad.addColorStop(1, '#0a1a0d')
+        ctx.save()
+        ctx.globalAlpha = 1 - dandelionReveal
+        ctx.fillStyle = fadeGrad
+        ctx.fillRect(0, 0, W, H)
+        ctx.restore()
+      }
 
       animRef.current = requestAnimationFrame(draw)
     }
