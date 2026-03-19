@@ -113,8 +113,8 @@ function buildDandelionSeeds(count: number): DandelionSeed[] {
     // Sunflower spiral angle with slight jitter
     const angle = i * goldenAngle + (rng() - 0.5) * 0.12
     // Length: peaks at t≈0.45, shorter near center & edges — gives natural density
-    const lengthBase = 44 + Math.sin(t * Math.PI) * 54
-    const length = lengthBase + (rng() - 0.5) * 10
+    const lengthBase = 55 + Math.sin(t * Math.PI) * 64
+    const length = lengthBase + (rng() - 0.5) * 12
     // Depth: seeds near angle=0 (right) face viewer, angle=π face away
     // We use 2D angle so depth is cos of the angle modulo 2π
     const depthFactor = Math.cos(angle)
@@ -173,37 +173,36 @@ function drawOneSeed(
   // Bristles only on the outward side; the inward half stays empty — the reference silhouette.
   const pappusOp = growthFrac < 0.75 ? 0 : (growthFrac - 0.75) / 0.25
   if (pappusOp > 0.01) {
-    const NUM_HAIRS = 10
-    const HAIR_LEN = 11.0
-    // Dome faces the stalk's outward direction — 90° either side of it
-    ctx.lineWidth = 0.5
-    ctx.strokeStyle = `rgba(245,242,235,${opacity * 0.58 * pappusOp})`
+    const NUM_HAIRS = 24
+    const HAIR_LEN = 12.0
+    ctx.lineWidth = 0.38
+    ctx.strokeStyle = `rgba(245,242,235,${opacity * 0.68 * pappusOp})`
     for (let i = 0; i < NUM_HAIRS; i++) {
-      const t = i / (NUM_HAIRS - 1) // 0 → 1
-      const a = angle - Math.PI * 0.5 + t * Math.PI // −90° to +90° around outward axis
+      const t = i / (NUM_HAIRS - 1)
+      const a = angle - Math.PI * 0.5 + t * Math.PI
       ctx.beginPath()
       ctx.moveTo(tipX, tipY)
       ctx.lineTo(tipX + Math.cos(a) * HAIR_LEN, tipY + Math.sin(a) * HAIR_LEN)
       ctx.stroke()
     }
-    // Luminous center glow — bristles appear to catch light at the base
+    // Luminous center glow — wider, brighter halo
     const glow = ctx.createRadialGradient(
       tipX,
       tipY,
       0,
       tipX,
       tipY,
-      HAIR_LEN * 1.1,
+      HAIR_LEN * 1.4,
     )
-    glow.addColorStop(0, `rgba(255,250,235,${opacity * 0.22 * pappusOp})`)
+    glow.addColorStop(0, `rgba(255,250,235,${opacity * 0.3 * pappusOp})`)
     glow.addColorStop(1, "rgba(0,0,0,0)")
     ctx.fillStyle = glow
     ctx.beginPath()
-    ctx.arc(tipX, tipY, HAIR_LEN * 1.1, 0, Math.PI * 2)
+    ctx.arc(tipX, tipY, HAIR_LEN * 1.4, 0, Math.PI * 2)
     ctx.fill()
     // Bright base dot
     ctx.beginPath()
-    ctx.arc(tipX, tipY, 0.85, 0, Math.PI * 2)
+    ctx.arc(tipX, tipY, 1.1, 0, Math.PI * 2)
     ctx.fillStyle = `rgba(255,252,245,${opacity * 0.95 * pappusOp})`
     ctx.fill()
   }
@@ -226,50 +225,65 @@ function drawFlyingSeedFull(
   const cb = Math.round(245 - tr * 115)
 
   const { vx, vy } = fs
-  const NUM_HAIRS = 10
-  const HAIR_LEN = 11.0
+  const NUM_HAIRS = 24
+  const HAIR_LEN = 10.0
+  const speed = Math.sqrt(vx * vx + vy * vy)
 
-  // Dome direction: parachute faces mostly upward (natural aerodynamics),
-  // tilted very slightly into the direction of travel for a hint of momentum
+  // Dome direction: parachute faces mostly upward, tilted slightly with travel direction
   const domeDir = Math.atan2(-1.0 + vy * 0.06, vx * 0.06)
 
-  // Amber stalk — extends behind the dome (opposite of domeDir), tapers with opacity
+  // Amber stalk — extends behind the dome, richer amber
   const stalkDir = domeDir + Math.PI
-  const visStalk = Math.min(fs.stalkLength * 0.18, 22) // show ~18% of filament, max 22px
+  const visStalk = Math.min(fs.stalkLength * 0.18, 22)
   ctx.beginPath()
   ctx.moveTo(x, y)
   ctx.lineTo(
     x + Math.cos(stalkDir) * visStalk,
     y + Math.sin(stalkDir) * visStalk,
   )
-  ctx.strokeStyle = `rgba(190,135,50,${opacity * 0.88})`
+  ctx.strokeStyle = `rgba(205,148,55,${opacity * 0.88})`
   ctx.lineWidth = 1.3
   ctx.stroke()
 
-  // Pappus dome — 180° fan opening in domeDir, identical bristle style to attached seeds
-  ctx.lineWidth = 0.5
-  ctx.strokeStyle = `rgba(${cr},${cg},${cb},${opacity * 0.58})`
+  // Pappus dome — hairs sway individually like bristles buffeted by wind
+  const swayAmp = 0.1 + Math.min(speed * 0.05, 0.08) // 0.10–0.18 rad; faster = more flutter
+  ctx.lineWidth = 0.36
+  ctx.strokeStyle = `rgba(${cr},${cg},${cb},${opacity * 0.68})`
   for (let i = 0; i < NUM_HAIRS; i++) {
     const t = i / (NUM_HAIRS - 1)
-    const a = domeDir - Math.PI * 0.5 + t * Math.PI // −90° to +90° around dome axis
+    const a = domeDir - Math.PI * 0.5 + t * Math.PI
+    // Each hair oscillates at its own phase — organic flutter as seed drifts
+    const hairAngle = a + Math.sin(fs.age * 0.11 + t * Math.PI * 2.2) * swayAmp
     ctx.beginPath()
     ctx.moveTo(x, y)
-    ctx.lineTo(x + Math.cos(a) * HAIR_LEN, y + Math.sin(a) * HAIR_LEN)
+    ctx.lineTo(
+      x + Math.cos(hairAngle) * HAIR_LEN,
+      y + Math.sin(hairAngle) * HAIR_LEN,
+    )
     ctx.stroke()
   }
 
-  // Luminous center glow
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, HAIR_LEN * 1.1)
-  glow.addColorStop(0, `rgba(${cr},${cg},${cb},${opacity * 0.18})`)
+  // Outer luminous glow — wider, brighter halo
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, HAIR_LEN * 1.5)
+  glow.addColorStop(0, `rgba(${cr},${cg},${cb},${opacity * 0.32})`)
   glow.addColorStop(1, "rgba(0,0,0,0)")
   ctx.fillStyle = glow
   ctx.beginPath()
-  ctx.arc(x, y, HAIR_LEN * 1.1, 0, Math.PI * 2)
+  ctx.arc(x, y, HAIR_LEN * 1.5, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Warm inner core — amber warmth at the heart of the wisp
+  const warmGlow = ctx.createRadialGradient(x, y, 0, x, y, 5.5)
+  warmGlow.addColorStop(0, `rgba(255,228,168,${opacity * 0.5})`)
+  warmGlow.addColorStop(1, "rgba(0,0,0,0)")
+  ctx.fillStyle = warmGlow
+  ctx.beginPath()
+  ctx.arc(x, y, 5.5, 0, Math.PI * 2)
   ctx.fill()
 
   // Bright base dot
   ctx.beginPath()
-  ctx.arc(x, y, 0.85, 0, Math.PI * 2)
+  ctx.arc(x, y, 1.2, 0, Math.PI * 2)
   ctx.fillStyle = `rgba(${Math.min(255, cr + 20)},${Math.min(255, cg + 20)},${Math.min(255, cb + 20)},${opacity * 0.95})`
   ctx.fill()
 }
@@ -316,7 +330,7 @@ export function Visualizer({
     ctx.scale(dpr, dpr)
 
     // Build dandelion seeds once
-    dandelionSeedsRef.current = buildDandelionSeeds(350)
+    dandelionSeedsRef.current = buildDandelionSeeds(400)
 
     // Pre-generate grain texture (small, tiled)
     const grain = document.createElement("canvas")
@@ -356,7 +370,7 @@ export function Visualizer({
         for (let i = 0; i < td.length; i++) sumSq += (td[i] - 128) ** 2
       }
       const rms = bufferReady ? Math.sqrt(sumSq / td.length) : 0
-      const intensity = bufferReady ? clamp(rms / 30, 0, 1) : 0
+      const intensity = bufferReady ? clamp(rms / 36, 0, 1) : 0
 
       let wNum = 0,
         wDen = 0
@@ -411,7 +425,7 @@ export function Visualizer({
         headY - 15,
         235,
       )
-      glow.addColorStop(0, "rgba(162,122,32,0.22)")
+      glow.addColorStop(0, "rgba(162,122,32,0.30)")
       glow.addColorStop(0.38, "rgba(110,82,18,0.14)")
       glow.addColorStop(1, "rgba(0,0,0,0)")
       ctx.fillStyle = glow
@@ -426,7 +440,7 @@ export function Visualizer({
         headY - 20,
         95,
       )
-      hi.addColorStop(0, "rgba(210,175,70,0.10)")
+      hi.addColorStop(0, "rgba(210,175,70,0.16)")
       hi.addColorStop(1, "rgba(0,0,0,0)")
       ctx.fillStyle = hi
       ctx.fillRect(0, 0, W, H)
@@ -491,7 +505,7 @@ export function Visualizer({
       ctx.moveTo(195, 205)
       ctx.bezierCurveTo(200, 280, 210, 355, 213, H - 28)
       ctx.strokeStyle = "rgba(70,102,44,0.88)"
-      ctx.lineWidth = 2.6
+      ctx.lineWidth = 10.6
       ctx.stroke()
 
       // ── Update dandelion seed detach / reattach ─────────────────────────
@@ -586,13 +600,13 @@ export function Visualizer({
       for (const s of seeds) {
         if (s.depthFactor >= -0.3) continue
         // Detaching: fade out at full length. Regenerating: full opacity, growing length.
-        const op = s.isDetached ? (1 - s.detachProgress) * 0.42 : 0.42
+        const op = s.isDetached ? (1 - s.detachProgress) * 0.5 : 0.5
         const growth = s.isDetached ? 1 : 1 - s.detachProgress
         drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
       for (const s of seeds) {
         if (s.depthFactor < -0.3 || s.depthFactor >= 0.3) continue
-        const op = s.isDetached ? (1 - s.detachProgress) * 0.68 : 0.68
+        const op = s.isDetached ? (1 - s.detachProgress) * 0.78 : 0.78
         const growth = s.isDetached ? 1 : 1 - s.detachProgress
         drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
@@ -603,6 +617,23 @@ export function Visualizer({
         drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
       ctx.restore()
+
+      // ── Volumetric sphere glow — soft inner luminosity for rounded, lush feel ──
+      const volGrad = ctx.createRadialGradient(
+        headX,
+        headY,
+        0,
+        headX,
+        headY,
+        102,
+      )
+      volGrad.addColorStop(0, "rgba(255,248,220,0.11)")
+      volGrad.addColorStop(0.42, "rgba(230,215,185,0.05)")
+      volGrad.addColorStop(1, "rgba(0,0,0,0)")
+      ctx.fillStyle = volGrad
+      ctx.beginPath()
+      ctx.arc(headX, headY, 102, 0, Math.PI * 2)
+      ctx.fill()
 
       // ── Center orb — expands into a warm ember when fully depleted ────────
       const glowRadius = 18 + depletionGlow * 52
@@ -646,7 +677,7 @@ export function Visualizer({
       }
 
       // Solid orb — pulses gently, color shifts cream-gold → deep ember orange
-      const orbRadius = 7.5 + depletionGlow * 3.0 * (0.85 + breathPulse * 0.15)
+      const orbRadius = 12 + depletionGlow * 3.0 * (0.85 + breathPulse * 0.15)
       const r0 = Math.round(232 + depletionGlow * 23) // 232 → 255
       const g0 = Math.round(212 - depletionGlow * 52) // 212 → 160
       const b0 = Math.round(160 - depletionGlow * 80) // 160 → 80
