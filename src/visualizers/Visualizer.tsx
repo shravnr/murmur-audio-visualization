@@ -113,8 +113,8 @@ function buildDandelionSeeds(count: number): DandelionSeed[] {
     // Sunflower spiral angle with slight jitter
     const angle = i * goldenAngle + (rng() - 0.5) * 0.12
     // Length: peaks at t≈0.45, shorter near center & edges — gives natural density
-    const lengthBase = 55 + Math.sin(t * Math.PI) * 64
-    const length = lengthBase + (rng() - 0.5) * 12
+    const lengthBase = 50 + Math.sin(t * Math.PI) * 50
+    const length = lengthBase + (rng() - 0.5) * 10
     // Depth: seeds near angle=0 (right) face viewer, angle=π face away
     // We use 2D angle so depth is cos of the angle modulo 2π
     const depthFactor = Math.cos(angle)
