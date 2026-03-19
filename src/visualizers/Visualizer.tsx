@@ -152,7 +152,7 @@ function drawOneSeed(
   seed: DandelionSeed,
   opacity: number,
   lean: number = 0,
-  growthFrac: number = 1,  // 0 = just started growing, 1 = full length
+  growthFrac: number = 1, // 0 = just started growing, 1 = full length
 ): void {
   if (opacity <= 0.01 || growthFrac <= 0.01) return
   const angle = seed.angle + lean
@@ -161,37 +161,50 @@ function drawOneSeed(
   const tipX = cx + Math.cos(angle) * currentLength
   const tipY = cy + Math.sin(angle) * currentLength
 
-  // Stalk — always fully opaque, just shorter while growing
+  // Stalk — solid anchor, slightly thicker to complement gossamer hairs
   ctx.beginPath()
   ctx.moveTo(cx, cy)
   ctx.lineTo(tipX, tipY)
   ctx.strokeStyle = `rgba(245,240,228,${opacity * 0.75})`
-  ctx.lineWidth = 0.45
+  ctx.lineWidth = 0.65
   ctx.stroke()
 
-  // Pappus hairs — appear only in the final 25% of growth, fading in naturally
+  // Pappus dome — 180° fan of bristles opening away from stalk tip (parachute / umbrella shape)
+  // Bristles only on the outward side; the inward half stays empty — the reference silhouette.
   const pappusOp = growthFrac < 0.75 ? 0 : (growthFrac - 0.75) / 0.25
   if (pappusOp > 0.01) {
-    const NUM_HAIRS = 35
-    const HAIR_LEN = 6.5
-    const CP_FRAC = 0.55
-    ctx.lineWidth = 1.5
-    ctx.strokeStyle = `rgba(245,240,228,${opacity * 0.52 * pappusOp})`
+    const NUM_HAIRS = 10
+    const HAIR_LEN = 11.0
+    // Dome faces the stalk's outward direction — 90° either side of it
+    ctx.lineWidth = 0.5
+    ctx.strokeStyle = `rgba(245,242,235,${opacity * 0.58 * pappusOp})`
     for (let i = 0; i < NUM_HAIRS; i++) {
-      const a = (i / NUM_HAIRS) * Math.PI * 2
-      const ex = tipX + Math.cos(a) * HAIR_LEN
-      const ey = tipY + Math.sin(a) * HAIR_LEN
-      const cpx = tipX + Math.cos(a) * HAIR_LEN * CP_FRAC
-      const cpy = tipY + Math.sin(a) * HAIR_LEN * CP_FRAC
+      const t = i / (NUM_HAIRS - 1) // 0 → 1
+      const a = angle - Math.PI * 0.5 + t * Math.PI // −90° to +90° around outward axis
       ctx.beginPath()
       ctx.moveTo(tipX, tipY)
-      ctx.quadraticCurveTo(cpx, cpy, ex, ey)
+      ctx.lineTo(tipX + Math.cos(a) * HAIR_LEN, tipY + Math.sin(a) * HAIR_LEN)
       ctx.stroke()
     }
-    // Bright tip dot — appears with pappus
+    // Luminous center glow — bristles appear to catch light at the base
+    const glow = ctx.createRadialGradient(
+      tipX,
+      tipY,
+      0,
+      tipX,
+      tipY,
+      HAIR_LEN * 1.1,
+    )
+    glow.addColorStop(0, `rgba(255,250,235,${opacity * 0.22 * pappusOp})`)
+    glow.addColorStop(1, "rgba(0,0,0,0)")
+    ctx.fillStyle = glow
     ctx.beginPath()
-    ctx.arc(tipX, tipY, 1.1, 0, Math.PI * 2)
-    ctx.fillStyle = `rgba(255,250,240,${opacity * 0.92 * pappusOp})`
+    ctx.arc(tipX, tipY, HAIR_LEN * 1.1, 0, Math.PI * 2)
+    ctx.fill()
+    // Bright base dot
+    ctx.beginPath()
+    ctx.arc(tipX, tipY, 0.85, 0, Math.PI * 2)
+    ctx.fillStyle = `rgba(255,252,245,${opacity * 0.95 * pappusOp})`
     ctx.fill()
   }
 }
@@ -206,48 +219,58 @@ function drawFlyingSeedFull(
   if (opacity <= 0.01) return
   const { x, y } = fs
 
-  // Tone-based color: bass (launchTone=0) → cool silver-white, treble (launchTone=1) → warm amber
+  // Tone color: bass → cool silver-white, treble → warm amber
   const tr = fs.launchTone
-  const cr = Math.round(210 + tr * 45) // 210 → 255
-  const cg = Math.round(225 - tr * 15) // 225 → 210
-  const cb = Math.round(245 - tr * 115) // 245 → 130
+  const cr = Math.round(210 + tr * 45)
+  const cg = Math.round(225 - tr * 15)
+  const cb = Math.round(245 - tr * 115)
 
-  // Streaming pappus — hairs blend toward "behind the direction of travel" based on speed.
-  // At rest: symmetric snowflake. Moving: hairs sweep backward like a tiny comet of feathers.
   const { vx, vy } = fs
-  const NUM_HAIRS = 35
-  const HAIR_LEN = 6.5
-  const speed = Math.sqrt(vx * vx + vy * vy)
-  const streamStr = Math.min(speed * 0.1, 0.22) // 80% open, 20% lean — barely suggests direction
-  const streamDir = Math.atan2(-vy, -vx) // "behind" = opposite of velocity
-  const cosDest = Math.cos(streamDir)
-  const sinDest = Math.sin(streamDir)
-  ctx.lineWidth = 1.5
-  ctx.strokeStyle = `rgba(${cr},${cg},${cb},${opacity * 0.52})`
+  const NUM_HAIRS = 10
+  const HAIR_LEN = 11.0
+
+  // Dome direction: parachute faces mostly upward (natural aerodynamics),
+  // tilted very slightly into the direction of travel for a hint of momentum
+  const domeDir = Math.atan2(-1.0 + vy * 0.06, vx * 0.06)
+
+  // Amber stalk — extends behind the dome (opposite of domeDir), tapers with opacity
+  const stalkDir = domeDir + Math.PI
+  const visStalk = Math.min(fs.stalkLength * 0.18, 22) // show ~18% of filament, max 22px
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+  ctx.lineTo(
+    x + Math.cos(stalkDir) * visStalk,
+    y + Math.sin(stalkDir) * visStalk,
+  )
+  ctx.strokeStyle = `rgba(190,135,50,${opacity * 0.88})`
+  ctx.lineWidth = 1.3
+  ctx.stroke()
+
+  // Pappus dome — 180° fan opening in domeDir, identical bristle style to attached seeds
+  ctx.lineWidth = 0.5
+  ctx.strokeStyle = `rgba(${cr},${cg},${cb},${opacity * 0.58})`
   for (let i = 0; i < NUM_HAIRS; i++) {
-    const baseA = (i / NUM_HAIRS) * Math.PI * 2
-    // Blend base angle toward stream direction on the unit circle
-    const cosA = Math.cos(baseA) * (1 - streamStr) + cosDest * streamStr
-    const sinA = Math.sin(baseA) * (1 - streamStr) + sinDest * streamStr
-    const a = Math.atan2(sinA, cosA)
-    // Hairs lengthen as speed increases — trailing feathers stretch out
-    const len = HAIR_LEN * (1 + streamStr * 0.7)
-    // More pronounced curve when streaming (feathers billow in the wake)
-    const cp = 0.55 + streamStr * 0.22
-    const ex = x + Math.cos(a) * len
-    const ey = y + Math.sin(a) * len
-    const cpx = x + Math.cos(a) * len * cp
-    const cpy = y + Math.sin(a) * len * cp
+    const t = i / (NUM_HAIRS - 1)
+    const a = domeDir - Math.PI * 0.5 + t * Math.PI // −90° to +90° around dome axis
     ctx.beginPath()
     ctx.moveTo(x, y)
-    ctx.quadraticCurveTo(cpx, cpy, ex, ey)
+    ctx.lineTo(x + Math.cos(a) * HAIR_LEN, y + Math.sin(a) * HAIR_LEN)
     ctx.stroke()
   }
 
-  // Bright center dot
+  // Luminous center glow
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, HAIR_LEN * 1.1)
+  glow.addColorStop(0, `rgba(${cr},${cg},${cb},${opacity * 0.18})`)
+  glow.addColorStop(1, "rgba(0,0,0,0)")
+  ctx.fillStyle = glow
   ctx.beginPath()
-  ctx.arc(x, y, 1.1, 0, Math.PI * 2)
-  ctx.fillStyle = `rgba(${Math.min(255, cr + 20)},${Math.min(255, cg + 20)},${Math.min(255, cb + 20)},${opacity * 0.92})`
+  ctx.arc(x, y, HAIR_LEN * 1.1, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Bright base dot
+  ctx.beginPath()
+  ctx.arc(x, y, 0.85, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(${Math.min(255, cr + 20)},${Math.min(255, cg + 20)},${Math.min(255, cb + 20)},${opacity * 0.95})`
   ctx.fill()
 }
 
@@ -273,8 +296,8 @@ export function Visualizer({
   const ruffleIntensityRef = useRef(0) // smoothed voice intensity driving the ruffle
   const rufflePhaseRef = useRef(0) // advances to create ripple propagation across seeds
   const lastReattachFrameRef = useRef(0) // rate-limits seed regeneration to one per ~1.5 s
-  const micRevealRef = useRef(0)         // 0 = mic not yet granted, 1 = fully revealed
-  const dandelionRevealRef = useRef(0)   // 0 = hidden, 1 = fully faded in
+  const micRevealRef = useRef(0) // 0 = mic not yet granted, 1 = fully revealed
+  const dandelionRevealRef = useRef(0) // 0 = hidden, 1 = fully faded in
   const depletionGlowRef = useRef(0) // 0 = normal, 1 = full ember glow
   const depletionBreathRef = useRef(0) // phase for slow breathing pulse
 
@@ -293,7 +316,7 @@ export function Visualizer({
     ctx.scale(dpr, dpr)
 
     // Build dandelion seeds once
-    dandelionSeedsRef.current = buildDandelionSeeds(500)
+    dandelionSeedsRef.current = buildDandelionSeeds(350)
 
     // Pre-generate grain texture (small, tiled)
     const grain = document.createElement("canvas")
@@ -433,8 +456,8 @@ export function Visualizer({
 
       // ── Mic permission reveal ───────────────────────────────────────────
       micRevealRef.current = isActive
-        ? Math.min(micRevealRef.current + 0.010, 1)   // fade in over ~1.7 s
-        : Math.max(micRevealRef.current - 0.006, 0)   // fade back if revoked
+        ? Math.min(micRevealRef.current + 0.01, 1) // fade in over ~1.7 s
+        : Math.max(micRevealRef.current - 0.006, 0) // fade back if revoked
       const micReveal = micRevealRef.current
 
       if (micReveal < 1) {
@@ -443,21 +466,24 @@ export function Visualizer({
         ctx.save()
         ctx.globalAlpha = textOp
         ctx.font = 'italic 14px Georgia, "Times New Roman", serif'
-        ctx.fillStyle = 'rgba(240, 228, 210, 1)'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('awaiting microphone input…', W / 2, H / 2)
+        ctx.fillStyle = "rgba(240, 228, 210, 1)"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillText("awaiting microphone input…", W / 2, H / 2)
         ctx.restore()
       }
 
       if (micReveal < 1) {
-        dandelionRevealRef.current = 0   // reset so next reveal always fades in fresh
+        dandelionRevealRef.current = 0 // reset so next reveal always fades in fresh
         animRef.current = requestAnimationFrame(draw)
         return
       }
 
       // Dandelion fades in after text is fully gone
-      dandelionRevealRef.current = Math.min(dandelionRevealRef.current + 0.014, 1)
+      dandelionRevealRef.current = Math.min(
+        dandelionRevealRef.current + 0.014,
+        1,
+      )
       const dandelionReveal = dandelionRevealRef.current
 
       // ── Stem — completely still, rooted, never moves ───────────────────
@@ -493,7 +519,7 @@ export function Visualizer({
 
       // Spawn flying seeds — lower threshold so a whisper releases 1–2 seeds,
       // normal speech gives a steady stream, loud voice bursts
-      const spawnFloat = intensity < 0.034 ? 0 : (intensity - 0.020) ** 1.65 * 4
+      const spawnFloat = intensity < 0.034 ? 0 : (intensity - 0.02) ** 1.65 * 4
       const spawnCount =
         Math.floor(spawnFloat) + (rng() < spawnFloat % 1 ? 1 : 0)
       for (let n = 0; n < spawnCount; n++) {
@@ -560,20 +586,20 @@ export function Visualizer({
       for (const s of seeds) {
         if (s.depthFactor >= -0.3) continue
         // Detaching: fade out at full length. Regenerating: full opacity, growing length.
-        const op     = s.isDetached ? (1 - s.detachProgress) * 0.42 : 0.42
-        const growth = s.isDetached ? 1 : (1 - s.detachProgress)
+        const op = s.isDetached ? (1 - s.detachProgress) * 0.42 : 0.42
+        const growth = s.isDetached ? 1 : 1 - s.detachProgress
         drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
       for (const s of seeds) {
         if (s.depthFactor < -0.3 || s.depthFactor >= 0.3) continue
-        const op     = s.isDetached ? (1 - s.detachProgress) * 0.68 : 0.68
-        const growth = s.isDetached ? 1 : (1 - s.detachProgress)
+        const op = s.isDetached ? (1 - s.detachProgress) * 0.68 : 0.68
+        const growth = s.isDetached ? 1 : 1 - s.detachProgress
         drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
       for (const s of seeds) {
         if (s.depthFactor < 0.3) continue
-        const op     = s.isDetached ? (1 - s.detachProgress) * 0.94 : 0.94
-        const growth = s.isDetached ? 1 : (1 - s.detachProgress)
+        const op = s.isDetached ? (1 - s.detachProgress) * 0.94 : 0.94
+        const growth = s.isDetached ? 1 : 1 - s.detachProgress
         drawOneSeed(ctx, headX, headY, s, op, seedOffset(s), growth)
       }
       ctx.restore()
@@ -718,9 +744,9 @@ export function Visualizer({
       // Soft fade-in: overlay background gradient at decreasing opacity
       if (dandelionReveal < 1) {
         const fadeGrad = ctx.createLinearGradient(0, 0, 0, H)
-        fadeGrad.addColorStop(0, '#0a1a0d')
-        fadeGrad.addColorStop(0.45, '#162b18')
-        fadeGrad.addColorStop(1, '#0a1a0d')
+        fadeGrad.addColorStop(0, "#0a1a0d")
+        fadeGrad.addColorStop(0.45, "#162b18")
+        fadeGrad.addColorStop(1, "#0a1a0d")
         ctx.save()
         ctx.globalAlpha = 1 - dandelionReveal
         ctx.fillStyle = fadeGrad
